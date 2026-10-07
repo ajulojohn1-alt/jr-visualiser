@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>LoadMaster Moving Visualiser | Joel Removals</title>
+<meta name="description" content="Watch your move pile into our 3.5t Luton van in real time. Trips, crew and loading time calculated instantly by Joel Removals — 10+ years, 4.8★ from 191 Google reviews, open 24/7.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Lora:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+:root{
+  --navy:#16283a; --navy-soft:#2b4055; --cream:#fbf8f2; --white:#fff;
+  --orange:#f7941d; --orange-deep:#e07000; --muted:#5d7186;
+  --line:rgba(22,40,58,.12); --shadow:0 14px 44px rgba(22,40,58,.16);
+  --serif:'Playfair Display',serif; --body:'Lora',serif;
+  --safe_b:env(safe-area-inset-bottom,0px);
+  font-size:16px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;height:100dvh;overflow:hidden}
+body{font-family:var(--body);color:var(--navy);background:var(--cream);-webkit-font-smoothing:antialiased;touch-action:manipulation}
+button,input,select{font-family:inherit;color:inherit}
+button{cursor:pointer;border:none;background:none}
+a{color:inherit}
+.grain{position:fixed;inset:0;z-index:999;pointer-events:none;opacity:.035;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.7' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+#app{height:100%;height:100dvh;display:flex;flex-direction:column}
+
+/* ============ VAN STAGE ============ */
+.van-stage{flex:1 1 auto;min-height:0;position:relative;overflow:hidden;
+  background:radial-gradient(1200px 500px at 12% -10%,rgba(247,148,29,.10),transparent 60%),
+             radial-gradient(900px 500px at 92% 112%,rgba(247,148,29,.08),transparent 60%),var(--cream)}
+.van-frame{position:absolute;inset:0;overflow:hidden}
+.van-zoom{position:absolute;inset:0;transform-origin:50% 47%;transform:scale(var(--zoom,1.55));
+  transition:transform .9s cubic-bezier(.22,.61,.36,1),opacity .45s}
+.van-zoom.intro{transform:scale(calc(var(--zoom,1.55)*.92))}
+.van-zoom.depart{transform:scale(var(--zoom,1.55)) translateX(-6%);opacity:.12;transition:transform .45s ease-in,opacity .45s ease-in}
+.van-zoom img.van-bg{width:100%;height:100%;object-fit:cover;display:block}
+.van-interior{position:absolute}
+.sprite,.gshadow{position:absolute;pointer-events:none}
+.sprite{animation:pop .3s cubic-bezier(.2,.9,.3,1.2) both}
+.sprite img{width:100%;height:100%;object-fit:contain;display:block}
+.sprite .ph{width:100%;height:100%;background:linear-gradient(160deg,#cfa470,#b98d55);border:1px solid #a37b45;border-radius:4px;
+  display:flex;align-items:center;justify-content:center;text-align:center;padding:2px;font:600 .55rem/1.2 var(--body);color:#4c3717}
+.gshadow{background:radial-gradient(ellipse at center,rgba(0,0,0,.5),transparent 68%);filter:blur(2px)}
+@keyframes pop{from{opacity:0;transform:translateY(10px) scale(.9)}to{opacity:1;transform:none}}
+
+.trip-badge{position:absolute;top:18px;right:18px;z-index:6;background:rgba(255,255,255,.95);border-radius:999px;
+  padding:10px 22px;font-family:var(--serif);font-weight:700;font-size:1.1rem;box-shadow:0 8px 22px rgba(0,0,0,.22)}
+.trip-badge b{color:var(--orange-deep)}
+
+.tip{position:absolute;left:50%;bottom:16px;transform:translate(-50%,16px);z-index:5;max-width:min(560px,86%);
+  background:rgba(255,255,255,.96);border:1px solid var(--line);border-radius:999px;padding:10px 22px;
+  font-size:.88rem;font-style:italic;color:var(--navy-soft);box-shadow:0 10px 26px rgba(0,0,0,.16);
+  opacity:0;transition:.4s cubic-bezier(.2,.9,.3,1.2);pointer-events:none;text-align:center}
+.tip.show{opacity:1;transform:translate(-50%,0)}
+.tip b{color:var(--orange-deep);font-style:normal}
+
+/* ============ PANEL ============ */
+.panel{position:absolute;top:22px;left:22px;z-index:7;width:308px;background:var(--white);border:1px solid var(--line);
+  border-radius:16px;box-shadow:var(--shadow);padding:22px;display:flex;flex-direction:column;gap:14px;
+  max-height:calc(100% - 44px);overflow:auto;scrollbar-width:none}
+.panel::-webkit-scrollbar{display:none}
+.p-head{display:flex;align-items:center;gap:12px}
+.logo-slot{flex:0 0 46px;width:46px;height:46px;border-radius:11px;background:var(--cream);border:1px solid var(--line);
+  display:grid;place-items:center;overflow:hidden}
+.logo-slot img{max-width:38px;max-height:38px;width:auto;height:auto}
+.logo-slot .logo-fb{font-size:1.4rem;line-height:1}
+.p-head h1{font-family:var(--serif);font-size:1.4rem;line-height:1.12}
+.p-head h1 span{color:var(--orange-deep)}
+
+.site-btn{display:flex;align-items:center;justify-content:center;gap:8px;padding:11px 12px;border:1.5px solid var(--navy);
+  border-radius:999px;font-size:.84rem;font-weight:600;letter-spacing:.04em;text-decoration:none;transition:.2s;background:var(--white)}
+.site-btn:hover{background:var(--navy);color:#fff}
+
+.preset-select{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:9px;background:var(--cream);font-size:.95rem}
+.stat-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px;text-align:center}
+.stat{background:var(--cream);border:1px solid var(--line);border-radius:9px;padding:11px 4px}
+.stat .v{font-family:var(--serif);font-size:1.8rem;font-weight:700;line-height:1}
+.stat.trips .v{color:var(--orange-deep)}
+.stat .l{font-size:.66rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-top:5px;font-weight:600}
+
+.meter-cap{font-size:.8rem;font-style:italic;color:var(--muted);line-height:1.35}
+.bench{font-size:.78rem;color:var(--navy-soft);margin-top:6px}
+.bench b{color:var(--orange-deep)}
+
+.pack{display:flex;align-items:center;gap:12px;cursor:pointer;background:var(--cream);border:1px solid var(--line);
+  border-radius:10px;padding:11px 12px;transition:.2s;position:relative}
+.pack:hover{border-color:var(--orange)}
+.pack input{position:absolute;opacity:0;pointer-events:none}
+.pack .track{flex:0 0 40px;height:22px;border-radius:99px;background:rgba(22,40,58,.18);position:relative;transition:.25s}
+.pack .knob{position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:.25s;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+.pack input:checked + .track{background:linear-gradient(90deg,var(--orange),var(--orange-deep))}
+.pack input:checked + .track .knob{left:21px}
+.pack .ptxt b{display:block;font-size:.9rem}
+.pack .ptxt small{color:var(--muted);font-size:.74rem}
+
+.actions{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}
+.act{border-radius:9px;padding:10px 2px;font-size:.76rem;font-weight:600;background:var(--cream);color:var(--navy);
+  border:1px solid var(--line);transition:.2s}
+.act:hover{background:var(--navy);color:#fff;border-color:var(--navy)}
+.act.quote{grid-column:1/-1;padding:14px;font-family:var(--serif);font-weight:700;font-size:1.05rem;color:#fff;border:none;
+  background:linear-gradient(135deg,var(--orange),var(--orange-deep));box-shadow:0 10px 24px rgba(224,112,0,.35)}
+.act.quote:hover{filter:brightness(1.07)}
+.sheet-x{display:none;position:absolute;top:12px;right:14px;font-size:1.2rem;color:var(--muted);padding:6px}
+
+/* ============ RIGHT RAIL ============ */
+.rail{position:absolute;top:76px;right:22px;z-index:6;width:278px;display:flex;flex-direction:column;gap:12px;
+  max-height:calc(100% - 98px);overflow-y:auto;scrollbar-width:none}
+.rail::-webkit-scrollbar{display:none}
+.tile{background:var(--white);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:16px;flex:0 0 auto}
+.tile-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.tile-head strong{font-family:var(--serif);font-size:1.02rem}
+.tile-nav button{width:26px;height:26px;border-radius:50%;border:1px solid var(--line);font-size:.85rem;margin-left:5px;transition:.2s}
+.tile-nav button:hover{background:var(--navy);color:#fff}
+.tile-slider{display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;padding-bottom:4px}
+.tile-slider::-webkit-scrollbar{display:none}
+.post-card{flex:0 0 200px;scroll-snap-align:start;display:flex;flex-direction:column;gap:7px;text-decoration:none;
+  background:var(--cream);border:1px solid var(--line);border-radius:11px;padding:12px;transition:.2s}
+.post-card:hover{border-color:var(--orange);transform:translateY(-2px)}
+.post-card .tag{font-size:.62rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--orange-deep)}
+.post-card .t{font-size:.84rem;line-height:1.35;color:var(--navy);font-weight:500}
+.post-card .r{font-size:.74rem;color:var(--muted);margin-top:auto}
+.blurb{font-size:.82rem;font-style:italic;line-height:1.55;color:var(--muted);margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}
+.blurb b{color:var(--navy-soft);font-style:normal}
+
+.calc-list{display:flex;flex-direction:column;gap:8px}
+.calc-btn{display:flex;align-items:center;gap:11px;text-decoration:none;background:var(--cream);border:1px solid var(--line);
+  border-radius:11px;padding:11px 12px;transition:.2s}
+.calc-btn:hover{border-color:var(--orange);transform:translateY(-1px)}
+.calc-btn .ci{font-size:1.35rem;line-height:1}
+.calc-btn .ct b{display:block;font-size:.88rem}
+.calc-btn .ct small{color:var(--muted);font-size:.72rem}
+.calc-btn .ca{margin-left:auto;color:var(--orange-deep);font-weight:700}
+
+/* ============ MOBILE TOP BAR ============ */
+.topbar{display:none;position:absolute;top:10px;left:10px;right:10px;z-index:30;align-items:center;gap:8px}
+.tb-site{flex:0 0 auto;height:44px;padding:0 14px 0 10px;border-radius:999px;background:rgba(255,255,255,.96);
+  box-shadow:0 6px 18px rgba(0,0,0,.2);display:flex;align-items:center;gap:8px;text-decoration:none;
+  font-size:.8rem;font-weight:700;letter-spacing:.03em}
+.tb-site img{height:24px;width:auto}
+.tb-stats{flex:1;min-width:0;text-align:center;background:rgba(255,255,255,.96);border-radius:999px;padding:12px 6px;
+  font-family:var(--serif);font-weight:700;font-size:.92rem;box-shadow:0 6px 18px rgba(0,0,0,.16);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tb-stats b{color:var(--orange-deep)}
+.tb-opts{flex:0 0 auto;height:44px;padding:0 14px;border-radius:999px;background:var(--navy);color:#fff;font-size:.8rem;font-weight:600;
+  box-shadow:0 6px 18px rgba(0,0,0,.25)}
+.tb-quote{flex:0 0 auto;height:44px;padding:0 16px;border-radius:999px;color:#fff;font-family:var(--serif);font-weight:700;font-size:.88rem;
+  background:linear-gradient(135deg,var(--orange),var(--orange-deep));box-shadow:0 8px 20px rgba(224,112,0,.4)}
+.scrim{position:fixed;inset:0;z-index:40;background:rgba(22,40,58,.45);opacity:0;pointer-events:none;transition:.3s}
+.scrim.show{opacity:1;pointer-events:auto}
+
+/* ============ CHOOSER ============ */
+.chooser{flex:0 0 auto;position:relative;z-index:8;background:var(--white);box-shadow:0 -10px 34px rgba(22,40,58,.10);
+  display:flex;flex-direction:column;padding-bottom:var(--safe_b)}
+.quickbar{display:none}
+.chooser-row{display:flex;align-items:stretch}
+.arrow{flex:0 0 56px;font-size:1.6rem;color:var(--navy);transition:.2s}
+.arrow:hover{color:var(--orange-deep);background:var(--cream)}
+.strip{flex:1;display:flex;gap:11px;overflow-x:auto;overflow-y:hidden;padding:15px 6px 17px;scroll-behavior:smooth;
+  scroll-snap-type:x proximity;scrollbar-width:none}
+.strip::-webkit-scrollbar{display:none}
+.card{flex:0 0 126px;scroll-snap-align:center;display:flex;flex-direction:column;align-items:center;gap:7px;background:var(--cream);
+  border:1px solid var(--line);border-radius:11px;padding:11px 6px;transition:.2s}
+.card:hover{border-color:var(--orange);transform:translateY(-2px)}
+.card.has{border-color:var(--orange);box-shadow:0 7px 18px rgba(247,148,29,.20)}
+.card .thumb{height:66px;display:flex;align-items:center;justify-content:center}
+.card .thumb img{max-height:66px;max-width:100px;object-fit:contain}
+.card .nm{font-size:.8rem;line-height:1.3;text-align:center;height:2.6em;display:flex;align-items:center;justify-content:center;color:var(--navy-soft);font-weight:500}
+.qty{display:flex;align-items:center;gap:9px}
+.qty button{width:28px;height:28px;border-radius:50%;border:1px solid var(--navy);font-size:1.05rem;line-height:1;display:grid;place-items:center;transition:.15s}
+.qty button:hover{background:var(--navy);color:#fff}
+.qty button:disabled{opacity:.25;pointer-events:none}
+.qty input{width:36px;text-align:center;border:none;border-bottom:1px solid var(--line);background:transparent;
+  font-family:var(--serif);font-weight:700;font-size:1.2rem;padding:1px 0}
+.qty input::-webkit-outer-spin-button,.qty input::-webkit-inner-spin-button{-webkit-appearance:none}
+
+.toast{position:fixed;left:50%;bottom:calc(28px + var(--safe_b));transform:translate(-50%,90px);z-index:1000;background:var(--navy);color:#fff;
+  padding:13px 30px;border-radius:999px;font-size:.95rem;box-shadow:var(--shadow);opacity:0;transition:.35s cubic-bezier(.2,.9,.3,1.2)}
+.toast.show{transform:translate(-50%,0);opacity:1}
+
+/* ============ RESPONSIVE ============ */
+@media (max-width:1100px){ .rail{width:246px} .post-card{flex-basis:180px} }
+@media (max-width:860px){
+  .topbar{display:flex}
+  .trip-badge,.arrow{display:none}
+  .quickbar{display:flex;gap:8px;overflow-x:auto;padding:10px 12px 2px;scrollbar-width:none;flex:0 0 auto}
+  .quickbar::-webkit-scrollbar{display:none}
+  .qchip{flex:0 0 auto;padding:9px 15px;border-radius:999px;background:var(--cream);border:1px solid var(--line);
+    font-size:.8rem;font-weight:600;color:var(--navy-soft);transition:.2s}
+  .qchip.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+  .qchip.qpack.on{background:linear-gradient(90deg,var(--orange),var(--orange-deep));border-color:transparent;color:#fff}
+  .qsep{flex:0 0 1px;background:var(--line);margin:4px 2px}
+  .panel .preset-select,.panel .pack{display:none}
+  .rail{position:static;width:auto;max-height:none;overflow:visible;margin-top:4px}
+  .tile{box-shadow:none}
+  .panel{position:fixed;left:10px;right:10px;bottom:10px;top:auto;width:auto;max-height:74dvh;z-index:50;
+    transform:translateY(calc(100% + 24px));transition:transform .4s cubic-bezier(.22,.61,.36,1);
+    padding:18px 18px calc(18px + var(--safe_b));border-radius:18px}
+  .panel::before{content:'';position:absolute;top:8px;left:50%;transform:translateX(-50%);width:44px;height:4px;border-radius:99px;background:rgba(22,40,58,.18)}
+  .panel.open{transform:none}
+  .sheet-x{display:block}
+  .card{flex-basis:112px}
+  .qty button{width:32px;height:32px}
+  .tip{bottom:10px;font-size:.8rem}
+}
+@media (max-width:400px){
+  .card{flex-basis:102px} .card .thumb{height:54px}
+  .tb-site span{display:none} .tb-site{padding:0 12px}
+  .tb-stats{font-size:.8rem} .tb-opts{padding:0 11px} .tb-quote{padding:0 12px;font-size:.82rem}
+}
+@media (prefers-reduced-motion:reduce){ *{animation:none!important;transition:none!important} }
+@media print{
+  body{overflow:visible;height:auto}
+  .van-stage,.chooser,.grain,.toast,.scrim{display:none!important}
+  #printout{display:block!important}
+}
+#printout{display:none;padding:40px;white-space:pre-wrap;font-size:12pt}
+</style>
+</head>
+<body>
+<div class="grain"></div>
+<div id="app">
+  <section class="van-stage" id="stage">
+    <div class="van-frame" id="frame">
+      <div class="van-zoom intro" id="vanZoom">
+        <img class="van-bg" id="vanBg" src="van-rear-view.png" alt="Joel Removals 3.5t Luton van, rear open, tail lift down">
+        <div class="van-interior" id="interior"></div>
+      </div>
+    </div>
+
+    <div class="trip-badge">Trip <b id="badgeTrip">1</b></div>
+    <div class="tip" id="tip"></div>
+
+    <div class="topbar">
+      <a class="tb-site" href="https://www.joelremovals.co.uk/"><img alt="" data-logo><span>Site</span></a>
+      <div class="tb-stats" id="tbStats">Trip <b>1</b> · 2 men · 2h</div>
+      <button class="tb-opts" id="btnOpts">Menu</button>
+      <button class="tb-quote" id="tbQuote">Quote →</button>
+    </div>
+
+    <aside class="panel" id="panel">
+      <button class="sheet-x" id="sheetX" aria-label="Close">✕</button>
+      <div class="p-head">
+        <div class="logo-slot"><img alt="Joel Removals logo" data-logo></div>
+        <h1>Load<span>Master</span><br>Visualiser</h1>
+      </div>
+      <a class="site-btn" href="https://www.joelremovals.co.uk/">← Return to joelremovals.co.uk</a>
+
+      <select class="preset-select" id="preset" aria-label="Choose a preset">
+        <option value="">Home or office</option>
+        <option value="studio">Studio flat</option>
+        <option value="onebed">1-bed flat</option>
+        <option value="twobed">2-bed house</option>
+        <option value="threebed">3-bed house</option>
+        <option value="office">Small office</option>
+        <option value="officelg">Large office move</option>
+        <option value="commercial">Commercial move</option>
+      </select>
+
+      <div class="stat-grid">
+        <div class="stat trips"><div class="v" id="sTrips">1</div><div class="l">Trips</div></div>
+        <div class="stat"><div class="v" id="sMen">2</div><div class="l">Men</div></div>
+        <div class="stat"><div class="v" id="sTime">2h</div><div class="l">Load</div></div>
+      </div>
+
+      <div>
+        <div class="meter-cap" id="mCap">Add items below to start loading the van.</div>
+        <div class="bench" id="mBench"></div>
+      </div>
+
+      <label class="pack">
+        <input type="checkbox" id="packSvc">
+        <span class="track"><span class="knob"></span></span>
+        <span class="ptxt"><b>Add full packing service</b><small>We pack everything — materials included</small></span>
+      </label>
+
+      <div class="actions">
+        <button class="act" id="btnUndo">↺ Undo</button>
+        <button class="act" id="btnCopy">⧉ Copy</button>
+        <button class="act" id="btnWa">✆ WhatsApp</button>
+        <button class="act" id="btnPrint">⎙ Print</button>
+        <button class="act quote" id="btnQuote">Get My Quote →</button>
+      </div>
+    </aside>
+
+    <div class="rail" id="rail">
+      <aside class="tile" id="blogTile">
+        <div class="tile-head">
+          <strong>From the Joel blog</strong>
+          <div class="tile-nav"><button id="tL" aria-label="Previous articles">←</button><button id="tR" aria-label="Next articles">→</button></div>
+        </div>
+        <div class="tile-slider" id="tileSlider">
+          <a class="post-card" href="https://www.joelremovals.co.uk/blog" target="_blank" rel="noopener"><span class="tag">Packing</span><span class="t">How many boxes do I really need?</span><span class="r">Read →</span></a>
+          <a class="post-card" href="https://www.joelremovals.co.uk/blog" target="_blank" rel="noopener"><span class="tag">Care</span><span class="t">Protecting sofas &amp; mattresses in transit</span><span class="r">Read →</span></a>
+          <a class="post-card" href="https://www.joelremovals.co.uk/blog" target="_blank" rel="noopener"><span class="tag">Commercial</span><span class="t">Office moves without downtime</span><span class="r">Read →</span></a>
+          <a class="post-card" href="https://www.joelremovals.co.uk/blog" target="_blank" rel="noopener"><span class="tag">Service</span><span class="t">Last-minute move? How our 24/7 actually works</span><span class="r">Read →</span></a>
+        </div>
+        <p class="blurb">Over a decade of careful moves across London — <b>191 Google reviews at a 4.8★ average</b>.
+        Open <b>24/7</b> for short-notice jobs, with <b>full packing services</b> if you'd rather not lift a finger.</p>
+      </aside>
+      <aside class="tile" id="calcTile">
+        <div class="tile-head"><strong>More free calculators</strong></div>
+        <div class="calc-list" id="calcList"></div>
+      </aside>
+    </div>
+  </section>
+
+  <footer class="chooser">
+    <div class="quickbar" id="quickbar"></div>
+    <div class="chooser-row">
+      <button class="arrow" id="arrL" aria-label="Scroll items left">←</button>
+      <div class="strip" id="strip"></div>
+      <button class="arrow" id="arrR" aria-label="Scroll items right">→</button>
+    </div>
+  </footer>
+</div>
+<div class="scrim" id="scrim"></div>
+<div class="toast" id="toast"></div>
+<div id="printout"></div>
+
+<script>
+/* ============================================================
+   LOADMASTER ENGINE v7 — meter bar removed; logo = joel-removals.png
+   ============================================================ */
+function $(id){ return document.getElementById(id); }
+
+/* --- EDIT ME: your other calculators --- */
+const CALCULATORS = [
+  { icon:'📦', name:'Moving Box Calculator', desc:'Exactly how many boxes do you need?', url:'https://www.joelremovals.co.uk/moving-box-calculator' },
+  { icon:'👷', name:'Men Calculator',        desc:'How many movers for your load?',      url:'https://tools.joelremovals.co.uk/men-calculator' },
+  { icon:'⚡', name:'Quick Match',           desc:'Trips, crew & time in 20 seconds',    url:'https://www.joelremovals.co.uk/van-calculator' }
+];
+/* Quick-bar presets (mobile) */
+const QUICK = [
+  ['studio','Studio'], ['onebed','1-bed'], ['twobed','2-bed'], ['threebed','3-bed'],
+  ['office','Office'], ['officelg','Large office'], ['commercial','Commercial']
+];
+
+/* Van: 3.5t Luton. Main floor 4.10 × 2.05 × 2.15 m + over-cab peak ≈ 19.6 m³; 19.0 billable. */
+const W = 2.05, H = 2.15, D = 4.10, VAN_M3 = 19.0;
+const C = 5.83, YC = 1.13;                                   // camera solved from photo
+const PHOTO = { x0:.420, y0:.292, x1:.609, y1:.628 };        // door rect, fractions of van-rear-view.webp
+
+const ITEMS = [
+  { id:'small-box',    file:'small moving box',  name:'Small moving box',  w:0.40, h:0.33, d:0.30, m3:0.040, flat:true, heavy:true },
+  { id:'medium-box',   file:'medium moving box', name:'Medium moving box', w:0.46, h:0.41, d:0.46, m3:0.085, flat:true },
+  { id:'large-box',    file:'large moving box',  name:'Large moving box',  w:0.46, h:0.61, d:0.46, m3:0.127, flat:true },
+  { id:'sofa',         file:'sofa',              name:'Sofa',              w:2.00, h:0.85, d:0.90, m3:1.530, heavy:true },
+  { id:'corner-sofa',  file:'corner sofa',       name:'Corner sofa',       w:2.30, h:0.85, d:1.60, m3:3.130, heavy:true },
+  { id:'mattress',     file:'mattress',          name:'Mattress',          w:0.25, h:1.90, d:1.35, m3:0.640, side:'r' },
+  { id:'fridge',       file:'fridge freezer',    name:'Fridge freezer',    w:0.60, h:1.80, d:0.65, m3:0.700, heavy:true },
+  { id:'washer',       file:'washing machine',   name:'Washing machine',   w:0.60, h:0.85, d:0.60, m3:0.310, flat:true, heavy:true },
+  { id:'bookshelf',    file:'bookshelf',         name:'Bookshelf',         w:0.80, h:1.80, d:0.30, m3:0.430, flat:true },
+  { id:'desk',         file:'desk',              name:'Desk',              w:1.40, h:0.75, d:0.70, m3:0.740, flat:true },
+  { id:'office-chair', file:'office chair',      name:'Office chair',      w:0.65, h:1.00, d:0.65, m3:0.420 },
+  { id:'plant-s',      file:'small houseplant',  name:'Small houseplant',  w:0.35, h:0.50, d:0.35, m3:0.060 },
+  { id:'plant-l',      file:'large houseplant',  name:'Large houseplant',  w:0.60, h:1.20, d:0.60, m3:0.430 }
+];
+const BY_ID = Object.fromEntries(ITEMS.map(i => [i.id, i]));
+
+const PRESETS = {
+  studio:     { 'small-box':4,  'medium-box':10, 'mattress':1, 'fridge':1, 'plant-s':2 },
+  onebed:     { 'small-box':6,  'medium-box':15, 'sofa':1, 'mattress':1, 'fridge':1, 'washer':1, 'plant-s':2 },
+  twobed:     { 'small-box':10, 'medium-box':25, 'large-box':6, 'sofa':1, 'mattress':2, 'desk':1, 'fridge':1, 'washer':1, 'bookshelf':1, 'plant-l':1 },
+  threebed:   { 'small-box':14, 'medium-box':35, 'large-box':10, 'sofa':2, 'mattress':3, 'desk':2, 'fridge':1, 'washer':1, 'bookshelf':2, 'office-chair':2, 'plant-l':1 },
+  office:     { 'small-box':10, 'medium-box':10, 'desk':5, 'office-chair':5, 'bookshelf':2 },
+  officelg:   { 'small-box':20, 'medium-box':30, 'large-box':20, 'desk':12, 'office-chair':12, 'bookshelf':4, 'fridge':1, 'plant-l':2 },
+  commercial: { 'small-box':30, 'medium-box':60, 'large-box':40, 'desk':20, 'office-chair':20, 'bookshelf':6, 'fridge':2, 'washer':2, 'plant-l':4 }
+};
+const BENCH = { studio:5, onebed:8, twobed:12, threebed:15, office:7, officelg:28, commercial:70 };
+const BENCH_LABEL = { studio:'studio flat', onebed:'1-bed', twobed:'2-bed', threebed:'3-bed', office:'small office', officelg:'large office', commercial:'commercial move' };
+
+/* ---------- projection ---------- */
+const xPct = (x,z) => 50 + (C*(x - W/2)/(D + C - z))/W*100;
+const wPct = (w,z) => (C*w/(D + C - z))/W*100;
+const yPct = (y,z) => (C*(y - YC)/(D + C - z) + YC)/H*100;
+const hPct = (h,z) => (C*h/(D + C - z))/H*100;
+
+/* ---------- calibration ---------- */
+const frame = $('frame'), interior = $('interior'), zoom = $('vanZoom'), strip = $('strip'), panel = $('panel');
+function positionInterior(){
+  const f = frame.getBoundingClientRect(), ia = 16/9;
+  let rw = f.width, rh = rw/ia;
+  if (rh < f.height){ rh = f.height; rw = rh*ia; }
+  const ox = (f.width - rw)/2, oy = (f.height - rh)/2;
+  interior.style.left   = ((ox + PHOTO.x0*rw)/f.width*100)+'%';
+  interior.style.top    = ((oy + PHOTO.y0*rh)/f.height*100)+'%';
+  interior.style.width  = ((PHOTO.x1-PHOTO.x0)*rw/f.width*100)+'%';
+  interior.style.height = ((PHOTO.y1-PHOTO.y0)*rh/f.height*100)+'%';
+}
+addEventListener('resize', positionInterior);
+
+/* ---------- packing ---------- */
+const STACK_GAP = 0.012, ROW_GAP = 0.10, M = 0.04;
+function pack(list){
+  const cols = [], out = [];
+  const floorGap = (col,w) => {
+    const feet = col.stacks.filter(s => s.y0 === 0 && !s.side).sort((a,b) => a.x0 - b.x0);
+    let x = M;
+    for (const f of feet){ if (f.x0 - x >= w - .01) return x; x = Math.max(x, f.x1); }
+    return (W - M - x >= w - .01) ? x : -1;
+  };
+  for (const it of list){
+    if (it.side){
+      let col = cols.find(c => c.side);
+      if (!col){ col = { z0:.05, z1:.05+it.d, stacks:[], side:true }; cols.push(col); }
+      const n = col.stacks.length, x = W - M - it.w - n*(it.w + .02);
+      col.stacks.push({ x0:x, x1:x+it.w, top:it.h, y0:0, flat:false, side:true });
+      out.push({ it, x, y:0, z:col.z0 }); continue;
+    }
+    let placed = false, best = null;
+    for (const col of cols){
+      if (col.z1 - col.z0 < it.d - .10) continue;
+      for (const s of col.stacks){
+        if (!s.flat || s.side || s.x1 - s.x0 < it.w - .06 || s.top + it.h > H) continue;
+        if (!best || col.z0 < best.col.z0 || (col.z0 === best.col.z0 && s.top > best.s.top)) best = { col, s };
+      }
+    }
+    if (best){
+      const x = best.s.x0 + ((best.s.x1 - best.s.x0) - it.w)/2;
+      out.push({ it, x, y:best.s.top, z:best.col.z0 });
+      best.s.top += it.h + STACK_GAP; placed = true;
+    }
+    if (!placed) for (const col of cols){
+      if (col.z1 - col.z0 < it.d - .10) continue;
+      const x = floorGap(col, it.w);
+      if (x >= 0){ col.stacks.push({ x0:x, x1:x+it.w, top:it.h, y0:0, flat:!!it.flat }); out.push({ it, x, y:0, z:col.z0 }); placed = true; break; }
+    }
+    if (!placed){
+      const z0 = cols.length ? Math.max(...cols.map(c => c.z1)) + ROW_GAP : .05;
+      if (z0 + it.d > D) continue;
+      const x = it.w > W*.6 ? (W - it.w)/2 : M;
+      cols.push({ z0, z1:z0+it.d, stacks:[{ x0:x, x1:x+it.w, top:it.h, y0:0, flat:!!it.flat }] });
+      out.push({ it, x, y:0, z:z0 });
+    }
+  }
+  return out;
+}
+
+/* ---------- state / calc ---------- */
+let qty = {}, history = [], trips = 1, prevTrips = 1, presetKey = '', packOn = false;
+const shownTips = {};
+function orderList(){
+  const list = [];
+  for (const [id,n] of Object.entries(qty)) for (let k=0;k<(n||0);k++) list.push(BY_ID[id]);
+  const rank = it => it.side ? 0 : (it.flat ? 2 : 1);
+  list.sort((a,b) => rank(a)-rank(b) || (b.w*b.d)-(a.w*a.d) || b.h-a.h);
+  return list;
+}
+function currentTripList(){
+  const list = orderList(); let vol = 0; const start = (trips-1)*VAN_M3;
+  return list.filter(it => { const s = vol; vol += it.m3; return s >= start - 1e-9; });
+}
+function totals(){
+  let vol = 0, heavy = 0;
+  for (const [id,n] of Object.entries(qty)){ const it = BY_ID[id]; if (!it || !n) continue; vol += it.m3*n; if (it.heavy) heavy += n; }
+  trips = Math.max(1, Math.ceil(vol/VAN_M3));
+  const men = Math.min(3, 2 + ((vol > 12 || heavy >= 2) ? 1 : 0));
+  const hrs = Math.max(2, Math.round(vol/6.5 + (trips-1)*0.75));
+  return { vol, men, hrs, heavy };
+}
+
+/* ---------- tips ---------- */
+let tipT;
+function tip(html){
+  const el = $('tip'); el.innerHTML = html; el.classList.add('show');
+  clearTimeout(tipT); tipT = setTimeout(() => el.classList.remove('show'), 5200);
+}
+function tipOnce(key, html){ if (!shownTips[key]){ shownTips[key] = 1; tip(html); } }
+function tipStored(key, html){
+  if (localStorage.getItem('lm_tip_'+key)) return;
+  localStorage.setItem('lm_tip_'+key, '1'); tip(html);
+}
+
+/* ---------- render ---------- */
+function renderVan(){
+  interior.innerHTML = '';
+  pack(currentTripList()).sort((a,b) => a.z - b.z).forEach(rec => {
+    const z = rec.z, s = z/D;
+    const sh = document.createElement('div'); sh.className = 'gshadow';
+    sh.style.left = xPct(rec.x,z)+'%'; sh.style.width = wPct(rec.it.w,z)+'%';
+    sh.style.bottom = (yPct(0,z)-2)+'%'; sh.style.height = Math.max(3, hPct(.12,z))+'%';
+    sh.style.opacity = (.28 + .34*s).toFixed(2); sh.style.zIndex = 9 + Math.round(z*20);
+    interior.appendChild(sh);
+    const el = document.createElement('div'); el.className = 'sprite';
+    el.style.left = xPct(rec.x,z)+'%'; el.style.bottom = yPct(rec.y,z)+'%';
+    el.style.width = wPct(rec.it.w,z)+'%'; el.style.height = hPct(rec.it.h,z)+'%';
+    el.style.zIndex = 10 + Math.round(z*20);
+    const img = document.createElement('img'); img.alt = rec.it.name;
+    img.style.filter = `drop-shadow(0 4px 4px rgba(0,0,0,.35)) brightness(${(0.86+0.14*s).toFixed(2)})`;
+    loadImg(img, rec.it.file, rec.it.name);
+    el.appendChild(img); interior.appendChild(el);
+  });
+}
+function renderStats(){
+  const t = totals();
+  $('sTrips').textContent = trips; $('badgeTrip').textContent = trips;
+  $('sMen').textContent = t.men;  $('sTime').textContent = t.hrs+'h';
+  $('tbStats').innerHTML = `Trip <b>${trips}</b> · ${t.men} men · ${t.hrs}h`;
+
+  const tripVol = currentTripList().reduce((s,i) => s+i.m3, 0);
+  const fill = Math.min(100, Math.round(tripVol/VAN_M3*100));
+  const cap = $('mCap'), bench = $('mBench');
+  if (!tripVol) cap.textContent = 'Add items below to start loading the van.';
+  else if (fill < 70) cap.textContent = `Room to spare for anything you've forgotten.`;
+  else if (fill <= 92) cap.textContent = `An efficient, well-planned load.`;
+  else cap.textContent = `A tight fit — good job our crew are professional Tetris players.`;
+  if (presetKey && BENCH[presetKey]){
+    bench.innerHTML = `Typical ${BENCH_LABEL[presetKey]}: ~${BENCH[presetKey]} m³ · yours <b>${t.vol.toFixed(1)} m³</b>` +
+      (t.vol > BENCH[presetKey]*1.15 ? ' — our <b>packing service</b> reclaims space by boxing smart.' : '');
+  } else bench.innerHTML = '';
+  if (fill > 92 && tripVol) tipOnce('tight', `Snug fit! <b>Ten+ years</b> of daily loads means we know every inch of this van.`);
+  return t;
+}
+function renderStrip(){
+  strip.querySelectorAll('.qty input').forEach(inp => {
+    const id = inp.dataset.id, v = qty[id]||0;
+    if (document.activeElement !== inp) inp.value = v;
+    inp.closest('.card').classList.toggle('has', v>0);
+    inp.closest('.qty').querySelector('.minus').disabled = !v;
+  });
+}
+function renderQuick(){
+  document.querySelectorAll('#quickbar .qchip[data-preset]').forEach(c =>
+    c.classList.toggle('on', c.dataset.preset === presetKey));
+  const qp = document.getElementById('qPack');
+  if (qp) qp.classList.toggle('on', packOn);
+}
+function refresh(){
+  const t = renderStats();
+  if (trips > prevTrips){ prevTrips = trips; zoom.classList.add('depart');
+    setTimeout(() => { renderVan(); zoom.classList.remove('depart'); }, 460);
+  } else { prevTrips = trips; renderVan(); }
+  renderStrip(); renderQuick();
+  localStorage.setItem('lm_qty', JSON.stringify(qty));
+  return t;
+}
+
+/* ---------- images ---------- */
+function loadImg(el, file, name){
+  const cands = [file, file.replace(/ /g,'-'), file.replace(/ /g,'_')]; let i = 0;
+  el.onerror = () => {
+    if (i < cands.length){ el.src = 'img/'+cands[i++]+'.png'; return; }
+    const ph = document.createElement('div'); ph.className = 'ph'; ph.textContent = name; el.replaceWith(ph);
+  };
+  el.src = 'img/'+cands[i++]+'.png';
+}
+function loadLogos(){
+  document.querySelectorAll('[data-logo]').forEach(img => {
+    const cands = ['joel-removals.png','img/joel-removals.png','assets/joel-removals.png']; let i = 0;
+    img.onerror = () => {
+      if (i < cands.length){ img.src = cands[i++]; return; }
+      if (img.closest('.logo-slot')){ const s = document.createElement('span'); s.className = 'logo-fb'; s.textContent = '🚚'; img.replaceWith(s); }
+      else img.style.display = 'none';
+    };
+    img.src = cands[i++];
+  });
+}
+
+/* ---------- presets / packing ---------- */
+function applyPreset(key){
+  presetKey = key; if (!key) return;
+  history.push(JSON.stringify(qty));
+  qty = JSON.parse(JSON.stringify(PRESETS[key]||{}));
+  $('preset').value = key;
+  refresh(); toast('Preset loaded — tweak anything below');
+  if (key.startsWith('office') || key === 'commercial')
+    tipOnce('office', `IT gear? We handle equipment  with utmost care so your move is as smooth as possible.`);
+}
+function setPack(on){
+  packOn = on;
+  $('packSvc').checked = on;
+  renderQuick();
+  if (on) tip(`Packing service added — our packers bring <b>boxes, wrap & tape</b> on the day.`);
+}
+
+/* ---------- UI build ---------- */
+function buildCalcTile(){
+  const list = $('calcList');
+  CALCULATORS.forEach(c => {
+    const a = document.createElement('a');
+    a.className = 'calc-btn'; a.href = c.url;
+    a.innerHTML = `<span class="ci">${c.icon}</span><span class="ct"><b>${c.name}</b><small>${c.desc}</small></span><span class="ca">→</span>`;
+    list.appendChild(a);
+  });
+}
+function buildQuickbar(){
+  const bar = $('quickbar');
+  QUICK.forEach(([key,label]) => {
+    const b = document.createElement('button');
+    b.className = 'qchip'; b.dataset.preset = key; b.textContent = label;
+    b.onclick = () => applyPreset(key);
+    bar.appendChild(b);
+  });
+  const sep = document.createElement('span'); sep.className = 'qsep'; bar.appendChild(sep);
+  const p = document.createElement('button');
+  p.className = 'qchip qpack'; p.id = 'qPack'; p.textContent = '📦 Packing service';
+  p.onclick = () => setPack(!packOn);
+  bar.appendChild(p);
+}
+function buildStrip(){
+  ITEMS.forEach(it => {
+    const c = document.createElement('div'); c.className = 'card';
+    c.innerHTML = `<div class="thumb"><img alt="${it.name}"></div>
+      <div class="nm">${it.name}</div>
+      <div class="qty">
+        <button class="plus" aria-label="Add ${it.name}">+</button>
+        <input class="n" data-id="${it.id}" inputmode="numeric" pattern="[0-9]*" maxlength="2" value="0" aria-label="${it.name} quantity">
+        <button class="minus" aria-label="Remove ${it.name}" disabled>−</button>
+      </div>`;
+    loadImg(c.querySelector('.thumb img'), it.file, it.name);
+    const inp = c.querySelector('input');
+    inp.addEventListener('focus', () => inp.select());
+    inp.addEventListener('change', () => setQty(it.id, parseInt(inp.value.replace(/\D/g,''))||0));
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') inp.blur(); });
+    c.querySelector('.plus').onclick  = () => change(it.id, +1);
+    c.querySelector('.minus').onclick = () => change(it.id, -1);
+    strip.appendChild(c);
+  });
+}
+function setQty(id, v){
+  history.push(JSON.stringify(qty)); if (history.length > 12) history.shift();
+  v = Math.max(0, Math.min(99, v));
+  if (v) qty[id] = v; else delete qty[id];
+  const t = refresh();
+  if (v){
+    const it = BY_ID[id];
+    if (matchMedia('(max-width:860px)').matches)
+      tipStored('swipe', `Swipe the item row for more — watch the van pile up in real time.`);
+    if (id === 'mattress') tipOnce('matt', `We can wrap your mattresses with <b>sealed mattress covers</b> if you opt for our packni.`);
+    if (it.heavy && t.heavy >= 2) tipOnce('heavy', `Sofas, fridges, washers: always a <b>two-man carry</b>.`);
+  }
+}
+function change(id, d){ setQty(id, (qty[id]||0) + d); }
+
+$('arrL').onclick = () => strip.scrollBy({ left:-360, behavior:'smooth' });
+$('arrR').onclick = () => strip.scrollBy({ left: 360, behavior:'smooth' });
+$('tL').onclick = () => $('tileSlider').scrollBy({ left:-220, behavior:'smooth' });
+$('tR').onclick = () => $('tileSlider').scrollBy({ left: 220, behavior:'smooth' });
+
+$('btnUndo').onclick = () => { if (!history.length) return toast('Nothing to undo'); qty = JSON.parse(history.pop()); refresh(); toast('Undone'); };
+$('preset').onchange = e => applyPreset(e.target.value);
+$('packSvc').onchange = e => setPack(e.target.checked);
+
+/* mobile sheet */
+const scrim = $('scrim');
+const openSheet  = () => { panel.classList.add('open'); scrim.classList.add('show'); };
+const closeSheet = () => { panel.classList.remove('open'); scrim.classList.remove('show'); };
+$('btnOpts').onclick = openSheet;
+$('sheetX').onclick = closeSheet;
+scrim.onclick = closeSheet;
+const mq = matchMedia('(max-width:860px)');
+const placeRail = () => (mq.matches ? panel : $('stage')).appendChild($('rail'));
+mq.addEventListener ? mq.addEventListener('change', placeRail) : mq.addListener(placeRail);
+
+/* ---------- summary / share ---------- */
+function quoteNow(){
+  location.href = 'https://www.joelremovals.co.uk/get-a-quote?load='
+    + encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(qty))))) + (packOn ? '&pack=1' : '');
+}
+function summaryText(){
+  const t = renderStats();
+  let s = '=== MOVE SUMMARY ===\nGenerated by LoadMaster Moving Visualiser\nDate: '
+        + new Date().toLocaleDateString('en-GB')
+        + '\nVan: 3.5t Luton, ~19 m³ (incl. over-cab peak)\n\nITEMS:\n';
+  for (const [id,n] of Object.entries(qty)) if (n) s += n+'x '+BY_ID[id].name+'  ('+(BY_ID[id].m3*n).toFixed(2)+' m³)\n';
+  s += '\nTOTALS:\nVolume: '+t.vol.toFixed(1)+' m³\nTrips: '+trips+'\nMen Needed: '+t.men+'\nEst. Loading/Unloading: '+t.hrs+' hours\n';
+  if (packOn) s += '\nSERVICES:\nFull packing service (materials included)\n';
+  return s + '\nJoel Removals — 10+ years across London · ★4.8 from 191 Google reviews · Open 24/7';
+}
+$('btnCopy').onclick = () => navigator.clipboard.writeText(summaryText())
+  .then(() => toast('Summary copied — paste it in the quote form')).catch(() => toast('Copy failed on this browser'));
+$('btnWa').onclick = () => window.open('https://wa.me/447804290575?text='+encodeURIComponent(summaryText()), '_blank');
+$('btnPrint').onclick = () => { $('printout').textContent = summaryText(); window.print(); };
+$('btnQuote').onclick = quoteNow;
+$('tbQuote').onclick = quoteNow;
+
+let toastT;
+function toast(m){ const el = $('toast'); el.textContent = m; el.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('show'), 2600); }
+
+(function load(){
+  const p = new URLSearchParams(location.search).get('load');
+  if (p){ try { qty = JSON.parse(decodeURIComponent(escape(atob(p)))); } catch(e){} }
+  else { try { qty = JSON.parse(localStorage.getItem('lm_qty'))||{}; } catch(e){ qty = {}; } }
+  packOn = new URLSearchParams(location.search).get('pack') === '1';
+  $('packSvc').checked = packOn;
+})();
+
+buildCalcTile();
+buildQuickbar();
+buildStrip();
+loadLogos();
+placeRail();
+positionInterior();
+$('vanBg').addEventListener('load', positionInterior);
+refresh();
+setTimeout(() => zoom.classList.remove('intro'), 350);
+setTimeout(() => tipStored('guide',
+  `Tap <b>+</b> to load the van — or tap any <b>number</b> to type an exact amount.`), 1200);
+</script>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ===== CONFIG — the ONLY place you'll ever tweak ===== */
+  var LM_CONFIG = {
+    // Matched against the visible text (or data-item attr) of your add-item buttons
+    items: [
+      { key: 'small',    match: /small\s*box/i },
+      { key: 'medium',   match: /medium\s*box/i },
+      { key: 'large',    match: /large\s*box/i },
+      { key: 'wardrobe', match: /wardrobe/i }
+    ],
+    skip: /office|commercial|home or office|trip|men|load|quote|undo|copy|whatsapp|print|packing|menu|studio flat|bed|house/i,
+    clickDelayMs: 40,
+    maxPerItem: 250,
+    bootTimeoutMs: 10000
+  };
+
+  function params() {
+    var q = new URLSearchParams(location.search), o = {};
+    ['small', 'medium', 'large', 'wardrobe', 'total'].forEach(function (k) {
+      o[k] = parseInt(q.get(k), 10) || 0;
+    });
+    o.preset = q.get('preset') || '';
+    o.source = q.get('source') || '';
+    return o;
+  }
+  function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+  function findButton(key) {
+    var rule = LM_CONFIG.items.filter(function (i) { return i.key === key; })[0];
+    if (!rule) return null;
+    var nodes = document.querySelectorAll('button, [role="button"], [data-item]');
+    // 1st pass: exact data-item attribute
+    for (var i = 0; i < nodes.length; i++) {
+      if ((nodes[i].getAttribute('data-item') || '') === key) return nodes[i];
+    }
+    // 2nd pass: visible label text
+    for (var j = 0; j < nodes.length; j++) {
+      var txt = (nodes[j].textContent || '').trim();
+      if (txt.length > 60) continue;
+      if (LM_CONFIG.skip.test(txt)) continue;
+      if (rule.match.test(txt)) return nodes[j];
+    }
+    return null;
+  }
+
+  function selectPreset(label) {
+    if (!label) return false;
+    var selects = document.querySelectorAll('select');
+    for (var i = 0; i < selects.length; i++) {
+      var opts = selects[i].options;
+      for (var k = 0; k < opts.length; k++) {
+        if (opts[k].text.trim() === label) {
+          selects[i].value = opts[k].value;
+          selects[i].dispatchEvent(new Event('change', { bubbles: true }));
+          selects[i].dispatchEvent(new Event('input',  { bubbles: true }));
+          return true;
+        }
+      }
+    }
+    // custom dropdown: click a visible option with that exact text
+    var cand = document.querySelectorAll('li, [role="option"], button, div');
+    for (var c = 0; c < cand.length; c++) {
+      var t = (cand[c].textContent || '').trim();
+      if (t === label && cand[c].offsetParent !== null) { cand[c].click(); return true; }
+    }
+    return false;
+  }
+
+  function toast(msg) {
+    var el = document.createElement('div');
+    el.textContent = msg;
+    el.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);' +
+      'background:#1f2a44;color:#fff;padding:14px 22px;border-radius:10px;font:600 14px/1.4 system-ui,' +
+      'sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.35);z-index:99999;max-width:90vw;text-align:center';
+    document.body.appendChild(el);
+    setTimeout(function () { el.remove(); }, 7000);
+  }
+
+  async function run() {
+    var p = params();
+    var total = p.small + p.medium + p.large + p.wardrobe;
+    if (!total && !p.preset) return; // normal visit, nothing to load
+
+    sessionStorage.setItem('lmEstimate', JSON.stringify(p)); // keep for debugging / app hooks
+
+    // wait for the palette to exist
+    var waited = 0;
+    while (!findButton('small') && !findButton('medium') && waited < LM_CONFIG.bootTimeoutMs) {
+      await sleep(150); waited += 150;
+    }
+
+    var presetOk = selectPreset(p.preset);
+    if (presetOk) await sleep(500); // let palette re-render for the scenario
+
+    var loaded = [], missing = [];
+    for (var i = 0; i < LM_CONFIG.items.length; i++) {
+      var key = LM_CONFIG.items[i].key;
+      var count = Math.min(p[key] || 0, LM_CONFIG.maxPerItem);
+      if (!count) continue;
+      var btn = findButton(key);
+      if (!btn) { missing.push(key + '×' + count); continue; }
+      for (var n = 0; n < count; n++) { btn.click(); await sleep(LM_CONFIG.clickDelayMs); }
+      loaded.push(count + ' ' + key);
+    }
+
+    if (loaded.length) {
+      toast('Estimate loaded from our box calculator: ' + loaded.join(', ') +
+            (missing.length ? ' (couldn\'t auto-add: ' + missing.join(', ') + ')' : ''));
+    } else {
+      toast('Your estimate: ' + p.small + ' small, ' + p.medium + ' medium, ' +
+            p.large + ' large, ' + p.wardrobe + ' wardrobe — add them below.');
+      console.warn('[LM bridge] add-buttons not detected. Adjust LM_CONFIG.items regexes.');
+    }
+
+    history.replaceState({}, document.title, location.pathname); // tidy the URL
+  }
+
+  window.lmLoadEstimate = run; // manual hook if you ever need it
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', run);
+  } else { run(); }
+})();
+</script>
+
+</body>
+</html>
