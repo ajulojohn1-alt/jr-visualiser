@@ -288,7 +288,7 @@ a{color:inherit}
     <div class="rail" id="rail">
       <aside class="tile" id="blogTile">
         <div class="tile-head">
-          <strong>From the Joel blog</strong>
+          <strong>Tips from us!</strong>
           <div class="tile-nav"><button id="tL" aria-label="Previous articles">←</button><button id="tR" aria-label="Next articles">→</button></div>
         </div>
         <div class="tile-slider" id="tileSlider">
@@ -701,132 +701,11 @@ setTimeout(() => tipStored('guide',
   `Tap <b>+</b> to load the van — or tap any <b>number</b> to type an exact amount.`), 1200);
 </script>
 
-<script>
-(function () {
-  'use strict';
+(function load(){
+  const p = new URLSearchParams(location.search).get('load');
+  if (p){ try { qty = JSON.parse(decodeURIComponent(escape(atob(p)))); } catch(e){} }
+  // ...
 
-  /* ===== CONFIG — the ONLY place you'll ever tweak ===== */
-  var LM_CONFIG = {
-    // Matched against the visible text (or data-item attr) of your add-item buttons
-    items: [
-      { key: 'small',    match: /small\s*box/i },
-      { key: 'medium',   match: /medium\s*box/i },
-      { key: 'large',    match: /large\s*box/i },
-      { key: 'wardrobe', match: /wardrobe/i }
-    ],
-    skip: /office|commercial|home or office|trip|men|load|quote|undo|copy|whatsapp|print|packing|menu|studio flat|bed|house/i,
-    clickDelayMs: 40,
-    maxPerItem: 250,
-    bootTimeoutMs: 10000
-  };
-
-  function params() {
-    var q = new URLSearchParams(location.search), o = {};
-    ['small', 'medium', 'large', 'wardrobe', 'total'].forEach(function (k) {
-      o[k] = parseInt(q.get(k), 10) || 0;
-    });
-    o.preset = q.get('preset') || '';
-    o.source = q.get('source') || '';
-    return o;
-  }
-  function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
-
-  function findButton(key) {
-    var rule = LM_CONFIG.items.filter(function (i) { return i.key === key; })[0];
-    if (!rule) return null;
-    var nodes = document.querySelectorAll('button, [role="button"], [data-item]');
-    // 1st pass: exact data-item attribute
-    for (var i = 0; i < nodes.length; i++) {
-      if ((nodes[i].getAttribute('data-item') || '') === key) return nodes[i];
-    }
-    // 2nd pass: visible label text
-    for (var j = 0; j < nodes.length; j++) {
-      var txt = (nodes[j].textContent || '').trim();
-      if (txt.length > 60) continue;
-      if (LM_CONFIG.skip.test(txt)) continue;
-      if (rule.match.test(txt)) return nodes[j];
-    }
-    return null;
-  }
-
-  function selectPreset(label) {
-    if (!label) return false;
-    var selects = document.querySelectorAll('select');
-    for (var i = 0; i < selects.length; i++) {
-      var opts = selects[i].options;
-      for (var k = 0; k < opts.length; k++) {
-        if (opts[k].text.trim() === label) {
-          selects[i].value = opts[k].value;
-          selects[i].dispatchEvent(new Event('change', { bubbles: true }));
-          selects[i].dispatchEvent(new Event('input',  { bubbles: true }));
-          return true;
-        }
-      }
-    }
-    // custom dropdown: click a visible option with that exact text
-    var cand = document.querySelectorAll('li, [role="option"], button, div');
-    for (var c = 0; c < cand.length; c++) {
-      var t = (cand[c].textContent || '').trim();
-      if (t === label && cand[c].offsetParent !== null) { cand[c].click(); return true; }
-    }
-    return false;
-  }
-
-  function toast(msg) {
-    var el = document.createElement('div');
-    el.textContent = msg;
-    el.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);' +
-      'background:#1f2a44;color:#fff;padding:14px 22px;border-radius:10px;font:600 14px/1.4 system-ui,' +
-      'sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.35);z-index:99999;max-width:90vw;text-align:center';
-    document.body.appendChild(el);
-    setTimeout(function () { el.remove(); }, 7000);
-  }
-
-  async function run() {
-    var p = params();
-    var total = p.small + p.medium + p.large + p.wardrobe;
-    if (!total && !p.preset) return; // normal visit, nothing to load
-
-    sessionStorage.setItem('lmEstimate', JSON.stringify(p)); // keep for debugging / app hooks
-
-    // wait for the palette to exist
-    var waited = 0;
-    while (!findButton('small') && !findButton('medium') && waited < LM_CONFIG.bootTimeoutMs) {
-      await sleep(150); waited += 150;
-    }
-
-    var presetOk = selectPreset(p.preset);
-    if (presetOk) await sleep(500); // let palette re-render for the scenario
-
-    var loaded = [], missing = [];
-    for (var i = 0; i < LM_CONFIG.items.length; i++) {
-      var key = LM_CONFIG.items[i].key;
-      var count = Math.min(p[key] || 0, LM_CONFIG.maxPerItem);
-      if (!count) continue;
-      var btn = findButton(key);
-      if (!btn) { missing.push(key + '×' + count); continue; }
-      for (var n = 0; n < count; n++) { btn.click(); await sleep(LM_CONFIG.clickDelayMs); }
-      loaded.push(count + ' ' + key);
-    }
-
-    if (loaded.length) {
-      toast('Estimate loaded from our box calculator: ' + loaded.join(', ') +
-            (missing.length ? ' (couldn\'t auto-add: ' + missing.join(', ') + ')' : ''));
-    } else {
-      toast('Your estimate: ' + p.small + ' small, ' + p.medium + ' medium, ' +
-            p.large + ' large, ' + p.wardrobe + ' wardrobe — add them below.');
-      console.warn('[LM bridge] add-buttons not detected. Adjust LM_CONFIG.items regexes.');
-    }
-
-    history.replaceState({}, document.title, location.pathname); // tidy the URL
-  }
-
-  window.lmLoadEstimate = run; // manual hook if you ever need it
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', run);
-  } else { run(); }
-})();
-</script>
 
 </body>
 </html>
